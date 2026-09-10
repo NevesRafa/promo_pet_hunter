@@ -1,0 +1,15 @@
+# Executáveis
+*.exe
+
+# Cache do Python
+__pycache__/
+*.pyc
+
+# Perfis de navegadores e automação (dados sensíveis e cookies)
+*_profile/
+chrome_clone_profile/
+media_cache/
+outputs/
+
+# Arquivos de dados temporários
+historico_enviados.json

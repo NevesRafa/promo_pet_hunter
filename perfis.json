@@ -1,0 +1,32 @@
+{
+  "active_profile": "banho_tosa",
+  "profiles": {
+    "banho_tosa": {
+      "label": "Banho e Tosa",
+      "whatsapp_group": "Achadinhos banho & tosa 🐶",
+      "affiliate": {
+        "amazon_tag": "n3v35-20",
+        "meli_matt_tool": "85415830",
+        "meli_matt_word": "n3v35"
+      },
+      "categories": {
+        "mercadolivre": {
+          "maquinas_e_laminas": ["maquina de tosa caes profissional", "maquina de tosa sem fio", "lamina de tosa profissional"],
+          "tesouras_e_acessorios_tosa": ["tesoura tosa pet profissional", "kit tesouras tosa profissional", "adaptador lamina tosa"],
+          "banho_e_hidratacao": ["shampoo pet caes", "condicionador pet caes", "mascara hidratacao pet"],
+          "secagem_e_estrutura": ["soprador pet banho e tosa", "secador pet profissional", "mesa de tosa banho e tosa"],
+          "escovas_e_pentes": ["rasqueadeira profissional pet", "desembolador de nos pet", "pente tosa pet profissional"],
+          "higiene_e_acessorios": ["corta unha pet profissional", "limpa ouvido pet", "coleira pet profissional"]
+        },
+        "amazon": {
+          "maquinas_e_laminas": ["maquina tosa caes profissional", "maquina tosa sem fio pet", "lamina maquina tosa pet"],
+          "tesouras_e_acessorios_tosa": ["tesoura tosa curva profissional", "tesoura desbaste pet", "kit tesoura tosa pet"],
+          "banho_e_hidratacao": ["shampoo pet caes", "condicionador pet caes", "perfume pet colonia caes"],
+          "secagem_e_estrutura": ["secador pet profissional", "soprador forca pet", "mesa tosa pet dobravel"],
+          "escovas_e_pentes": ["rasqueadeira profissional pet", "desembolador pelos pet", "pente pet profissional"],
+          "higiene_e_acessorios": ["cortador unha pet cachorro", "limpador ouvido pet", "coleira adestramento pet"]
+        }
+      }
+    }
+  }
+}

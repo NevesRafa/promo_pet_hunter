@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 # Diretórios
 BASE_DIR = Path(__file__).resolve().parent
@@ -168,3 +169,36 @@ PAUSA_ENTRE_POSTAGENS_MAX = 15.0
 PAUSA_ENTRE_RODADAS_MIN = 22.0     # minutos, entre um lote e o próximo garimpo
 PAUSA_ENTRE_RODADAS_MAX = 32.0
 ITENS_POR_LOTE = 4                 # quantas ofertas por rodada de garimpo
+LIMPAR_PROMOCOES_ANTERIORES = True
+LIMITE_LIMPEZA_PROMOCOES = 100
+MENSAGEM_SAUDACAO = "Bom dia! 🌞🐾 Hoje tem novos achadinhos de banho, tosa e pet shop."
+MENSAGEM_ENCERRAMENTO = "Por hoje encerramos os achadinhos. 🐾 Bom descanso e até amanhã!"
+
+PROFILE_CONFIG_FILE = BASE_DIR / "perfis.json"
+
+
+def _load_active_profile():
+    """Aplica o perfil salvo pelo painel sem exigir mudanças no código."""
+    global CATEGORIAS_MERCADOLIVRE, CATEGORIAS_AMAZON
+    global AMAZON_TAG, MELI_MATT_TOOL, MELI_MATT_WORD, DEFAULT_WHATSAPP_GROUP
+    global LIMPAR_PROMOCOES_ANTERIORES
+    try:
+        data = json.loads(PROFILE_CONFIG_FILE.read_text(encoding="utf-8"))
+        profile_name = data.get("active_profile", "")
+        profile = data.get("profiles", {}).get(profile_name, {})
+        categories = profile.get("categories", {})
+        CATEGORIAS_MERCADOLIVRE = categories.get("mercadolivre", CATEGORIAS_MERCADOLIVRE)
+        CATEGORIAS_AMAZON = categories.get("amazon", CATEGORIAS_AMAZON)
+        affiliate = profile.get("affiliate", {})
+        AMAZON_TAG = affiliate.get("amazon_tag", AMAZON_TAG)
+        MELI_MATT_TOOL = affiliate.get("meli_matt_tool", MELI_MATT_TOOL)
+        MELI_MATT_WORD = affiliate.get("meli_matt_word", MELI_MATT_WORD)
+        DEFAULT_WHATSAPP_GROUP = profile.get("whatsapp_group", DEFAULT_WHATSAPP_GROUP)
+        LIMPAR_PROMOCOES_ANTERIORES = profile.get(
+            "clean_old", LIMPAR_PROMOCOES_ANTERIORES
+        )
+    except (OSError, json.JSONDecodeError, AttributeError):
+        pass
+
+
+_load_active_profile()

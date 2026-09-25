@@ -124,6 +124,39 @@ class WhatsAppSender:
 
         return False
 
+    def delete_previous_promotions(self, page: Page, max_messages: int = 100) -> int:
+        """Apaga somente mensagens de saida que parecem promocoes do bot."""
+        deleted = 0
+        messages = page.locator("div.message-out").all()
+        for message in reversed(messages[-max_messages:]):
+            try:
+                text = message.inner_text(timeout=1500)
+                is_promotion = (
+                    "🏪" in text
+                    and ("R$" in text or "desconto" in text.lower())
+                    and "http" in text
+                )
+                if not is_promotion:
+                    continue
+                message.click(button="right")
+                time.sleep(0.4)
+                page.get_by_text("Apagar mensagem", exact=True).last.click(timeout=2500)
+                time.sleep(0.4)
+                delete_all = page.get_by_text("Apagar para todos", exact=True).last
+                if delete_all.count() and delete_all.is_visible():
+                    delete_all.click()
+                else:
+                    page.get_by_text("Apagar para mim", exact=True).last.click()
+                deleted += 1
+                time.sleep(0.5)
+            except Exception:
+                try:
+                    page.keyboard.press("Escape")
+                except Exception:
+                    pass
+        print(f"    [limpeza] {deleted} promocao(oes) anterior(es) removida(s).")
+        return deleted
+
     def send_deal_with_photo_or_text(self, page: Page, product: Product, caption: str) -> bool:
         try:
             existing_dialog = page.locator("div[role='dialog']").first

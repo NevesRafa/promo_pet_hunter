@@ -421,6 +421,19 @@ def postar_com_comportamento_humano(page: Page, deal: Product, caption: str) -> 
         print(f"      [!] Erro no envio: {e}")
         return False
 
+def enviar_mensagem_texto(page: Page, mensagem: str) -> bool:
+    try:
+        chat_box = page.locator("footer div[contenteditable='true']").first
+        chat_box.wait_for(state="visible", timeout=15000)
+        chat_box.click()
+        chat_box.type(mensagem, delay=random.randint(6, 14))
+        page.keyboard.press("Enter")
+        time.sleep(2.0)
+        return True
+    except Exception as e:
+        print(f"      [!] Não foi possível enviar mensagem de rotina: {e}")
+        return False
+
 def enviar_lote_para_whatsapp(
     lote: List[Product],
     historico: Set[str],
@@ -428,6 +441,8 @@ def enviar_lote_para_whatsapp(
     telefone_pessoal: Optional[str] = None,
     registrar_historico: bool = True,
     aguardar_entre_postagens: bool = True,
+    limpar_promocoes_anteriores: bool = False,
+    enviar_saudacao: bool = False,
 ) -> int:
     if not lote:
         return 0
@@ -486,6 +501,15 @@ def enviar_lote_para_whatsapp(
             print(f"[!] Não foi possível encontrar ou abrir o grupo '{grupo}'.")
             context.close()
             return 0
+
+        if limpar_promocoes_anteriores and config.LIMPAR_PROMOCOES_ANTERIORES:
+            sender.delete_previous_promotions(
+                page,
+                max_messages=config.LIMITE_LIMPEZA_PROMOCOES,
+            )
+
+        if enviar_saudacao:
+            enviar_mensagem_texto(page, config.MENSAGEM_SAUDACAO)
 
         for idx, deal in enumerate(lote, start=1):
             normalizar_produto(deal)
@@ -567,6 +591,31 @@ def enviar_diagnostico(mensagem: str) -> bool:
     phone = getattr(config, "OWNER_WHATSAPP_PHONE", "")
     if not phone:
         print("   [!] OWNER_WHATSAPP_PHONE não configurado em config.py — pulando diagnóstico.")
+        return False
+
+def enviar_mensagem_no_grupo(mensagem: str) -> bool:
+    sender = WhatsAppSender()
+    try:
+        with sync_playwright() as p:
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(sender.profile_dir),
+                channel="chrome",
+                headless=False,
+                args=["--disable-blink-features=AutomationControlled"],
+                viewport={"width": 1280, "height": 800},
+            )
+            page = context.new_page()
+            page.set_default_timeout(60000)
+            page.goto("https://web.whatsapp.com", wait_until="domcontentloaded")
+            page.wait_for_selector("div#pane-side, div[role='textbox']", timeout=60000)
+            if not sender.open_group_chat(page, config.DEFAULT_WHATSAPP_GROUP):
+                context.close()
+                return False
+            sucesso = enviar_mensagem_texto(page, mensagem)
+            context.close()
+            return sucesso
+    except Exception as e:
+        print(f"[!] Falha na mensagem de encerramento: {e}")
         return False
 
     sender = WhatsAppSender()
@@ -667,6 +716,8 @@ def executar_producao():
     historico = carregar_historico()
     data_ultimo_reset = datetime.now().date()
     rodada = 1
+    limpeza_pendente = True
+    saudacao_pendente = True
 
     while True:
         aguardar_horario_comercial()
@@ -679,6 +730,8 @@ def executar_producao():
             resetar_estatisticas_dia()
             data_ultimo_reset = data_hoje
             rodada = 1
+            limpeza_pendente = True
+            saudacao_pendente = True
 
         hora_atual_str = datetime.now().strftime('%H:%M:%S')
         print(f"\n" + "#" * 70)
@@ -713,11 +766,20 @@ def executar_producao():
         except Exception as e:
             print(f"   [!] Não foi possível salvar o registro em planilha: {e}")
 
-        enviar_lote_para_whatsapp(lote, historico, rodada)
+        enviar_lote_para_whatsapp(
+            lote,
+            historico,
+            rodada,
+            limpar_promocoes_anteriores=limpeza_pendente,
+            enviar_saudacao=saudacao_pendente,
+        )
+        limpeza_pendente = False
+        saudacao_pendente = False
         talvez_enviar_diagnostico(historico)
 
         if not esta_no_horario_operacional():
             print(f"\n🔔 [EXPEDIENTE FINALIZADO] Atingido o limite das {config.END_HOUR:02d}:00.")
+            enviar_mensagem_no_grupo(config.MENSAGEM_ENCERRAMENTO)
             aguardar_horario_comercial()
             continue
 

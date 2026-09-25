@@ -57,6 +57,15 @@ Fica rodando o dia todo dentro da janela operacional, postando lotes de
 postagens e entre rodadas. Fora do horário, o robô entra em standby e
 acorda sozinho no horário configurado.
 
+### 4. Usar o painel local
+```bash
+python painel.py
+```
+O painel permite criar perfis para grupos diferentes, editar categorias de
+Mercado Livre e Amazon e trocar as tags de afiliado sem editar o código. Cada
+perfil fica salvo em `perfis.json`; depois de salvar, use o teste pelo seu
+número antes de iniciar a produção.
+
 ---
 
 ## ⚙️ Ajustes principais (`config.py`)
@@ -71,6 +80,7 @@ acorda sozinho no horário configurado.
 | Categorias e termos de busca | `CATEGORIAS_MERCADOLIVRE` / `CATEGORIAS_AMAZON` |
 | Palavras que barram um produto fora do nicho | `PALAVRAS_PROIBIDAS_NAO_PET` |
 | Grupo de WhatsApp de destino | `DEFAULT_WHATSAPP_GROUP` |
+| Limpeza diária de promoções antigas | `LIMPAR_PROMOCOES_ANTERIORES` |
 | Tags de afiliado | `AMAZON_TAG` / `MELI_MATT_TOOL` / `MELI_MATT_WORD` |
 
 ---
@@ -78,6 +88,8 @@ acorda sozinho no horário configurado.
 ## 📁 Estrutura do projeto
 
 - `bot.py` — ponto de entrada único: garimpo, filtros, links de afiliado e postagem.
+- `painel.py` — interface local para perfis, grupos, categorias e afiliados.
+- `perfis.json` — perfis editáveis e perfil ativo.
 - `config.py` — todas as configurações num lugar só.
 - `filters.py` — deduplicação de produtos coletados.
 - `templates.py` — formatação chamativa das mensagens do WhatsApp.

@@ -1,18 +1,28 @@
 # -*- coding: utf-8 -*-
 """
-PromoPet Hunter - Caçador Contínuo Furtivo Sem Limite (4 Lojas)
-Mercado Livre + Amazon + AliExpress + Shopee
+PromoPet Hunter PROD - Edição Especial Produção Furtiva
+Lojas Oficiais: MERCADO LIVRE & AMAZON
+Foco Estrito: Nicho Pet Shop, Banho & Tosa e Cuidados com Pets
 
-Arquitetura Anti-Conflito e Anti-Ban:
-1. Garimpo das 4 lojas de forma sequencial com WhatsApp 100% FECHADO.
-2. Scrapers nativos seguros para Shopee e AliExpress sem risco de 'context destroyed'.
-3. Termos de busca direcionados para o que cada loja tem de melhor no Nicho Pet / Banho & Tosa.
-4. Normalização inteligente de lojas e atributos (suporta 'price' e 'current_price' sem erros).
-5. Filtro Pet aprimorado (aceita 'Cheirinho de Bebê' de colônias pet legítimas).
-6. Priorização inteligente por desconto e reputação, garantindo sempre 3 a 4 super ofertas.
-7. Se um lote estiver vazio, NÃO abre o WhatsApp; aguarda apenas 3 minutos para nova tentativa.
-8. WhatsApp Web com digitação humana, foto real ou prévia, e pausas orgânicas.
+Destaques desta Versão de Produção:
+1. Links 100% Funcionais:
+   - Mercado Livre: Preserva o caminho e slug canônico completo, anexando matt_tool e matt_word (Zero erro 404).
+   - Amazon: Link canônico limpo com ASIN e tag oficial.
+2. Comportamento Humano Anti-Ban no WhatsApp:
+   - Digitação ritmada com velocidade variável simulando operador humano.
+   - Envio com foto real de alta qualidade ou prévia de link com tempo de renderização.
+   - Intervalos orgânicos entre ofertas (10 a 15 minutos) e descanso entre lotes (22 a 32 min).
+   - Simulação de pausas naturais e micro-movimentos.
+3. Filtro Pet Rigoroso:
+   - Permite apenas produtos genuínos de Pet Shop / Banho & Tosa.
+   - Bloqueia automotivo, cabelo humano, cosméticos humanos e artigos para bebês humanos.
+   - Reconhece colônias e perfumes pet 'cheirinho de bebê'.
+4. Estabilidade Total:
+   - Mercado Livre e Amazon rodam sequencialmente com o WhatsApp fechado durante o garimpo.
+   - O WhatsApp abre exclusivamente para a postagem do lote e fecha com segurança.
+   - Compatibilidade total de preços (price e current_price).
 """
+
 import os
 import sys
 import time
@@ -40,10 +50,30 @@ from media_manager import MediaManager
 from playwright.sync_api import sync_playwright, Page
 
 # ==============================================================================
-# UTILITÁRIOS UNIVERSAIS DE PREÇO E PRODUTO (COMPATIBILIDADE 100% BLINDADA)
+# GESTÃO DE HISTÓRICO LOCAL (ANTI-REPETIÇÃO)
+# ==============================================================================
+HISTORICO_FILE = Path("historico_enviados.json")
+
+def carregar_historico() -> Set[str]:
+    if not HISTORICO_FILE.exists():
+        return set()
+    try:
+        with open(HISTORICO_FILE, "r", encoding="utf-8") as f:
+            return set(json.load(f))
+    except Exception:
+        return set()
+
+def salvar_historico(historico: Set[str]):
+    try:
+        with open(HISTORICO_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(historico), f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f" [!] Erro ao salvar histórico: {e}")
+
+# ==============================================================================
+# NORMALIZAÇÃO DE PREÇOS E PRODUTOS (BLINDAGEM TOTAL)
 # ==============================================================================
 def get_preco_produto(p) -> float:
-    """Extrai o preço de qualquer objeto Product sem estourar AttributeError."""
     for attr in ("price", "current_price", "raw_price", "valor", "original_price"):
         val = getattr(p, attr, None)
         if val is not None:
@@ -56,7 +86,6 @@ def get_preco_produto(p) -> float:
     return 0.0
 
 def normalizar_produto(p: Product) -> Product:
-    """Garante que tanto .price quanto .current_price existam em qualquer objeto."""
     preco = get_preco_produto(p)
     try:
         p.price = preco
@@ -76,350 +105,94 @@ def normalizar_produto(p: Product) -> Product:
         pass
     return p
 
-def criar_produto_seguro(
-    title: str,
-    price: float,
-    orig_price: float,
-    disc_pct: float,
-    rating: float,
-    reviews_count: int,
-    url: str,
-    image_url: str,
-    store: str
-) -> Product:
-    """Cria um objeto Product compatível com qualquer variante da classe no repo."""
-    try:
-        prod = Product(
-            title=title,
-            current_price=price,
-            original_price=orig_price,
-            discount_percent=disc_pct,
-            rating=rating,
-            reviews_count=reviews_count,
-            url=url,
-            image_url=image_url,
-            store=store
-        )
-    except TypeError:
+# ==============================================================================
+# CONSTRUTORES DE LINKS DE AFILIADOS OFICIAIS (CORRIGIDO PARA ZERO 404)
+# ==============================================================================
+def construir_link_meli_seguro(url_original: str) -> str:
+    """
+    Resolve e normaliza qualquer link do Mercado Livre para evitar erro 404:
+    1. Desempacota links de anúncios patrocinados (click1 / mclics / redirect) extraindo a URL real de destino.
+    2. Suporta produtos de catálogo (/p/MLB...).
+    3. Preserva o slug canônico original do produto.
+    4. Corrige qualquer duplicidade acidental de prefixo (ex: MLB-MLB...).
+    5. Anexa os parâmetros oficiais de afiliado matt_tool e matt_word.
+    """
+    if not url_original:
+        return url_original
+    
+    url = url_original.strip()
+    tool_id = getattr(config, "MELI_TOOL", "85415830")
+    word_id = getattr(config, "MELI_WORD", "n3v35")
+
+    # 1. Se for anúncio patrocinado do ML Ads (click1.mercadolivre.com.br ou rotas /mclics/)
+    if any(k in url.lower() for k in ["click1.", "/mclics/", "click?", "custom_url="]):
         try:
-            prod = Product(
-                title=title,
-                price=price,
-                original_price=orig_price,
-                discount_percent=disc_pct,
-                rating=rating,
-                reviews_count=reviews_count,
-                url=url,
-                image_url=image_url,
-                store=store
-            )
-        except TypeError:
-            prod = Product(title=title, url=url, store=store)
+            parsed = urllib.parse.urlparse(url)
+            qs = urllib.parse.parse_qs(parsed.query)
+            for param in ["custom_url", "url", "go", "redirect", "target", "link"]:
+                if param in qs and qs[param]:
+                    target = urllib.parse.unquote(qs[param][0])
+                    if "mercadolivre.com" in target:
+                        return construir_link_meli_seguro(target)
+        except Exception:
+            pass
 
-    prod.price = price
-    prod.current_price = price
-    prod.original_price = orig_price
-    prod.discount_percent = disc_pct
-    prod.rating = rating
-    prod.reviews_count = reviews_count
-    prod.image_url = image_url
-    prod.store = store
-    return prod
+    # 2. Produto de Catálogo (/p/MLB...)
+    p_match = re.search(r'/p/(MLB\d+)', url, re.IGNORECASE)
+    if p_match:
+        p_code = p_match.group(1).upper()
+        clean = url.split('#')[0].split('?')[0].rstrip('/')
+        if f"/p/{p_code}" in clean or f"/p/{p_code.lower()}" in clean:
+            return f"{clean}?matt_tool={tool_id}&matt_word={word_id}"
+        return f"https://www.mercadolivre.com.br/p/{p_code}?matt_tool={tool_id}&matt_word={word_id}"
 
-# ==============================================================================
-# SCRAPER NATIVO SEGURO: SHOPEE BRASIL (SEM PAGE.EVALUATE, 100% LOCATORS)
-# ==============================================================================
-class SafeShopeeScraper:
-    """Scraper blindado da Shopee que não quebra em navegações dinâmicas."""
-    def __init__(self, headless: bool = True):
-        self.headless = headless
-        self.store = "shopee"
-        self.affiliate_id = getattr(config, "SHOPEE_AFFILIATE_ID", "18391981133")
+    # 3. Produto normal com slug e código MLB
+    clean = url.split('#')[0].split('?')[0].rstrip('/')
+    clean = clean.replace("MLB-MLB", "MLB-")
 
-    def search(self, query: str, max_items: int = 12) -> List[Product]:
-        products: List[Product] = []
-        clean_query = urllib.parse.quote(query)
-        search_url = f"https://shopee.com.br/search?keyword={clean_query}&sortBy=sales"
+    if "produto.mercadolivre.com.br/MLB-" in clean:
+        return f"{clean}?matt_tool={tool_id}&matt_word={word_id}"
 
-        try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(
-                    headless=self.headless,
-                    args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--lang=pt-BR,pt"]
-                )
-                context = browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-                    locale="pt-BR",
-                    viewport={"width": 1366, "height": 768}
-                )
-                page = context.new_page()
-                page.set_default_timeout(35000)
-                page.route("**/*", lambda r: r.abort() if r.request.resource_type in ["media", "font"] else r.continue_())
+    # 4. Fallback canônico seguro caso a URL venha encurtada ou truncada
+    num_match = re.search(r'MLB-?(\d{8,14})', url, re.IGNORECASE)
+    if num_match:
+        num_code = num_match.group(1)
+        return f"https://produto.mercadolivre.com.br/MLB-{num_code}?matt_tool={tool_id}&matt_word={word_id}"
 
-                try:
-                    page.goto(search_url, wait_until="domcontentloaded")
-                except Exception:
-                    pass
+    # 5. Fallback geral
+    return f"{clean}?matt_tool={tool_id}&matt_word={word_id}"
 
-                time.sleep(4.0)
+def construir_link_amazon_seguro(url_original: str) -> str:
+    """
+    Localiza o ASIN do produto da Amazon e constrói link canônico limpo.
+    """
+    tag = getattr(config, "AMAZON_TAG", "n3v35-20")
+    asin_match = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url_original, re.IGNORECASE)
+    if asin_match:
+        asin = asin_match.group(1).upper()
+        return f"https://www.amazon.com.br/dp/{asin}?tag={tag}"
+    
+    url_limpa = url_original.split('#')[0].split('?')[0].strip()
+    return f"{url_limpa}?tag={tag}"
 
-                # Fecha popups se existirem
-                for close_sel in ["button.shopee-alert-popup__btn", "div.shopee-popup__close-btn"]:
-                    try:
-                        btn = page.locator(close_sel).first
-                        if btn.count() > 0 and btn.is_visible():
-                            btn.click()
-                            time.sleep(0.5)
-                    except Exception:
-                        pass
-
-                for _ in range(3):
-                    page.mouse.wheel(0, 800)
-                    time.sleep(0.8)
-
-                cards = page.locator("a[data-sqe='link'], a[href*='-i.'], div.shopee-search-item-result__item a").all()
-                seen_urls = set()
-
-                for card in cards:
-                    if len(products) >= max_items:
-                        break
-                    try:
-                        url = card.get_attribute("href") or ""
-                        if "-i." not in url:
-                            continue
-                        if url.startswith("/"):
-                            url = "https://shopee.com.br" + url
-
-                        m_id = re.search(r'-i\.(\d+)\.(\d+)', url)
-                        if not m_id:
-                            continue
-                        shop_id, item_id = m_id.group(1), m_id.group(2)
-                        can_url = f"https://shopee.com.br/product/{shop_id}/{item_id}"
-                        if can_url in seen_urls:
-                            continue
-                        seen_urls.add(can_url)
-
-                        card_text = card.inner_text()
-                        lines = [l.strip() for l in card_text.split('\n') if len(l.strip()) > 8]
-                        title = lines[0] if lines else ""
-
-                        p_matches = re.findall(r'R\$\s*([\d\.,]+)', card_text)
-                        parsed = []
-                        for pm in p_matches:
-                            try:
-                                v = float(pm.replace('.', '').replace(',', '.'))
-                                if 3.0 <= v <= 20000.0:
-                                    parsed.append(v)
-                            except ValueError:
-                                pass
-
-                        if not parsed:
-                            continue
-                        curr_price = min(parsed)
-                        orig_price = max(parsed) if len(parsed) > 1 else curr_price
-
-                        disc_pct = 0.0
-                        m_disc = re.search(r'-?(\d{1,2})%', card_text)
-                        if m_disc:
-                            disc_pct = float(m_disc.group(1))
-                        elif orig_price > curr_price:
-                            disc_pct = round(((orig_price - curr_price) / orig_price) * 100, 1)
-
-                        rate = 4.8
-                        m_rate = re.search(r'([45]\.\d)', card_text)
-                        if m_rate:
-                            rate = float(m_rate.group(1))
-
-                        img_url = ""
-                        im_el = card.locator("img").first
-                        if im_el.count() > 0:
-                            src = im_el.get_attribute("src") or im_el.get_attribute("data-src") or ""
-                            if src.startswith("//"):
-                                src = "https:" + src
-                            if "shopeesz.com" in src or "shopee.com" in src:
-                                src = re.sub(r'_tn$', '', src)
-                                img_url = src
-
-                        prod = criar_produto_seguro(
-                            title=title.replace('\n', ' ').strip(),
-                            price=curr_price,
-                            orig_price=orig_price,
-                            disc_pct=disc_pct,
-                            rating=rate,
-                            reviews_count=180,
-                            url=can_url,
-                            image_url=img_url,
-                            store="shopee"
-                        )
-                        products.append(prod)
-                    except Exception:
-                        continue
-
-                context.close()
-                browser.close()
-        except Exception as e:
-            print(f"      [!] Shopee Playwright: {e}")
-        return products
+def aplicar_links_afiliados(produtos: List[Product]) -> List[Product]:
+    for p in produtos:
+        store = (p.store or "").lower()
+        if "mercado" in store or "meli" in store:
+            p.url = construir_link_meli_seguro(p.url)
+        elif "amazon" in store:
+            p.url = construir_link_amazon_seguro(p.url)
+    return produtos
 
 # ==============================================================================
-# SCRAPER NATIVO SEGURO: ALIEXPRESS CHOICE
-# ==============================================================================
-class SafeAliExpressScraper:
-    """Scraper blindado do AliExpress focado em ferramentas de tosa."""
-    def __init__(self, headless: bool = True):
-        self.headless = headless
-        self.store = "aliexpress"
-        self.tracking_id = getattr(config, "ALIEXPRESS_TRACKING_ID", "n3v35")
-
-    def search(self, query: str, max_items: int = 12) -> List[Product]:
-        products: List[Product] = []
-        clean_query = urllib.parse.quote(query)
-        search_url = f"https://pt.aliexpress.com/w/wholesale-{clean_query}.html?g=y&SearchText={clean_query}&sortType=total_tranpro_desc"
-        try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(
-                    headless=self.headless,
-                    args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--lang=pt-BR,pt"]
-                )
-                context = browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-                    locale="pt-BR",
-                    viewport={"width": 1366, "height": 768}
-                )
-                page = context.new_page()
-                page.set_default_timeout(35000)
-                page.route("**/*", lambda r: r.abort() if r.request.resource_type in ["media", "font"] else r.continue_())
-
-                try:
-                    page.goto(search_url, wait_until="domcontentloaded")
-                except Exception:
-                    pass
-
-                time.sleep(3.5)
-
-                for _ in range(3):
-                    page.mouse.wheel(0, 800)
-                    time.sleep(0.8)
-
-                cards = page.locator("a[href*='/item/']").all()
-                seen_urls = set()
-
-                for card in cards:
-                    if len(products) >= max_items:
-                        break
-                    try:
-                        url = card.get_attribute("href") or ""
-                        if "/item/" not in url:
-                            continue
-                        m_id = re.search(r'/item/(\d+)\.html', url)
-                        if not m_id:
-                            continue
-                        item_id = m_id.group(1)
-                        can_url = f"https://pt.aliexpress.com/item/{item_id}.html"
-                        if can_url in seen_urls:
-                            continue
-                        seen_urls.add(can_url)
-
-                        title = ""
-                        for t_sel in ["h3", "h1", "div[class*='title']", "span[class*='title']", "img[alt]"]:
-                            el = card.locator(t_sel).first
-                            if el.count() > 0:
-                                title = el.get_attribute("alt") if t_sel == "img[alt]" else el.inner_text().strip()
-                                if len(title) > 10:
-                                    break
-                        if len(title) < 8:
-                            continue
-
-                        card_text = card.inner_text()
-                        p_matches = re.findall(r'R\$\s*([\d\.,]+)', card_text)
-                        parsed = []
-                        for pm in p_matches:
-                            try:
-                                v = float(pm.replace('.', '').replace(',', '.'))
-                                if 2.0 <= v <= 20000.0:
-                                    parsed.append(v)
-                            except ValueError:
-                                pass
-
-                        if not parsed:
-                            continue
-                        curr_price = min(parsed)
-                        orig_price = max(parsed) if len(parsed) > 1 else curr_price
-
-                        disc_pct = 0.0
-                        m_disc = re.search(r'-?(\d{1,2})%', card_text)
-                        if m_disc:
-                            disc_pct = float(m_disc.group(1))
-                        elif orig_price > curr_price:
-                            disc_pct = round(((orig_price - curr_price) / orig_price) * 100, 1)
-
-                        rate = 4.7
-                        m_rate = re.search(r'([45]\.\d)', card_text)
-                        if m_rate:
-                            rate = float(m_rate.group(1))
-
-                        img_url = ""
-                        im_el = card.locator("img").first
-                        if im_el.count() > 0:
-                            src = im_el.get_attribute("src") or im_el.get_attribute("data-src") or ""
-                            if src.startswith("//"):
-                                src = "https:" + src
-                            if "alicdn.com" in src:
-                                src = re.sub(r'_\d+x\d+.*$', '', src)
-                                img_url = src
-
-                        prod = criar_produto_seguro(
-                            title=title.replace('\n', ' ').strip(),
-                            price=curr_price,
-                            orig_price=orig_price,
-                            disc_pct=disc_pct,
-                            rating=rate,
-                            reviews_count=120,
-                            url=can_url,
-                            image_url=img_url,
-                            store="aliexpress"
-                        )
-                        products.append(prod)
-                    except Exception:
-                        continue
-
-                context.close()
-                browser.close()
-        except Exception as e:
-            print(f"      [!] AliExpress Playwright: {e}")
-        return products
-
-# ==============================================================================
-# HISTÓRICO LOCAL DE ENVIADOS (GARANTE ZERO REPETIÇÃO)
-# ==============================================================================
-HISTORICO_FILE = Path("historico_enviados.json")
-
-def carregar_historico() -> Set[str]:
-    if not HISTORICO_FILE.exists():
-        return set()
-    try:
-        with open(HISTORICO_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return set(data)
-    except Exception:
-        return set()
-
-def salvar_historico(historico: Set[str]):
-    try:
-        with open(HISTORICO_FILE, "w", encoding="utf-8") as f:
-            json.dump(list(historico), f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f" [!] Erro ao salvar histórico: {e}")
-
-# ==============================================================================
-# FILTRO PET RIGOROSO COM INTELIGÊNCIA DE CHEIRINHO DE BEBÊ
+# FILTRO ESTRITO: 100% PET SHOP / BANHO & TOSA
 # ==============================================================================
 PALAVRAS_PROIBIDAS_NAO_PET = [
     # Automotivo
     "automotivo", "automotiva", "carro", "veicular", "moto", "lava auto", "vonixx",
     "cera", "pneu", "lataria", "motor", "parabrisa", "v-floc", "pretinho", "detailer",
     # Cabelo humano / Salão de beleza
-    "cabelo humano", "capilar", "salao de beleza", "salão", "cabeleireiro", "cabeleireira",
+    "cabelo humano", "capilar", "salao de beleza", "salão de beleza", "cabeleireiro", "cabeleireira",
     "progressiva", "botox capilar", "alisamento", "tintura", "mechas", "barba", "barbeiro",
     "escova progressiva", "l'oréal", "wella", "haskell",
     # Bebê / Criança (estrito para não barrar perfume pet cheirinho de bebê)
@@ -440,7 +213,8 @@ PALAVRAS_OBRIGATORIAS_PET = [
     "secador pet", "maquina tosa", "máquina tosa", "lamina tosa", "lâmina tosa",
     "canil", "toalha pet", "coleira contencao", "focinheira", "shampoo cães", "shampoo pet",
     "pente tosa", "tesoura tosa", "adaptador lamina", "corta unha pet",
-    "laco pet", "laço pet", "bandana pet", "gravata pet", "colonia pet", "perfume pet"
+    "laco pet", "laço pet", "bandana pet", "gravata pet", "colonia pet", "perfume pet",
+    "hidratacao pet", "hidratação pet", "mascara pet", "manteiga hidratação pet"
 ]
 
 def validar_produto_pet(produto: Product) -> bool:
@@ -450,276 +224,133 @@ def validar_produto_pet(produto: Product) -> bool:
             return False
     return any(termo_pet in titulo for termo_pet in PALAVRAS_OBRIGATORIAS_PET)
 
-# ==============================================================================
-# NORMALIZADOR UNIVERSAL DE LOJAS (EVITA ERRO COM ESPAÇOS)
-# ==============================================================================
-def normalizar_loja(store_str: str) -> str:
-    s = (store_str or "").lower().replace(" ", "").replace("_", "").replace("-", "")
-    if "mercado" in s or "meli" in s:
-        return "mercadolivre"
-    if "amazon" in s:
-        return "amazon"
-    if "ali" in s:
-        return "aliexpress"
-    if "shopee" in s:
-        return "shopee"
-    return "outros"
+def extrair_id_unico(produto: Product) -> str:
+    url = produto.url
+    m_mlb = re.search(r'(MLB-?\d{8,14})', url, re.IGNORECASE)
+    if m_mlb:
+        return f"ml_{m_mlb.group(1).upper().replace('-', '')}"
+    m_asin = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url, re.IGNORECASE)
+    if m_asin:
+        return f"amz_{m_asin.group(1).upper()}"
+    return url.split('?')[0].split('#')[0]
 
 # ==============================================================================
-# LINKS DE AFILIADOS OFICIAIS
-# ==============================================================================
-def construir_link_meli_seguro(url_original: str) -> str:
-    if not url_original:
-        return url_original
-    mlb_match = re.search(r'(MLB-?\d{8,14})', url_original, re.IGNORECASE)
-    if mlb_match:
-        mlb_code = mlb_match.group(1).upper().replace('-', '')
-        base_url = f"https://produto.mercadolivre.com.br/MLB-{mlb_code}"
-    elif "/p/MLB" in url_original:
-        p_match = re.search(r'/p/(MLB\d+)', url_original, re.IGNORECASE)
-        base_url = f"https://www.mercadolivre.com.br/p/{p_match.group(1).upper()}" if p_match else url_original.split('?')[0]
-    else:
-        base_url = url_original.split('?')[0]
-
-    tool_id = getattr(config, "MELI_TOOL", "85415830")
-    word_id = getattr(config, "MELI_WORD", "neves_rafael")
-    separator = "&" if "?" in base_url else "?"
-    return f"{base_url}{separator}matt_tool={tool_id}&matt_word={word_id}"
-
-def construir_link_amazon_seguro(url_original: str) -> str:
-    tag = getattr(config, "AMAZON_TAG", "n3v35-20")
-    asin_match = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url_original, re.IGNORECASE)
-    if asin_match:
-        asin = asin_match.group(1).upper()
-        return f"https://www.amazon.com.br/dp/{asin}?tag={tag}"
-    sep = "&" if "?" in url_original else "?"
-    return f"{url_original}{sep}tag={tag}"
-
-def construir_link_aliexpress_seguro(url_original: str) -> str:
-    tracking_id = getattr(config, "ALIEXPRESS_TRACKING_ID", "n3v35")
-    item_match = re.search(r'/item/(\d+)\.html', url_original)
-    if item_match:
-        item_id = item_match.group(1)
-        return f"https://pt.aliexpress.com/item/{item_id}.html?tracking_id={tracking_id}&aff_platform=portals-tool"
-    sep = "&" if "?" in url_original else "?"
-    return f"{url_original}{sep}tracking_id={tracking_id}"
-
-def construir_link_shopee_seguro(url_original: str) -> str:
-    aff_id = getattr(config, "SHOPEE_AFFILIATE_ID", "18391981133")
-    match_id = re.search(r'product/(\d+)/(\d+)', url_original)
-    if match_id:
-        shop_id, item_id = match_id.group(1), match_id.group(2)
-        base_url = f"https://shopee.com.br/product/{shop_id}/{item_id}"
-        return f"{base_url}?af_siteid={aff_id}&pid=affiliates"
-    sep = "&" if "?" in url_original else "?"
-    return f"{url_original}{sep}af_siteid={aff_id}&pid=affiliates"
-
-def aplicar_links_afiliados_robusto(produtos: List[Product]) -> List[Product]:
-    for p in produtos:
-        store = normalizar_loja(p.store)
-        if store == "mercadolivre":
-            p.url = construir_link_meli_seguro(p.url)
-        elif store == "amazon":
-            p.url = construir_link_amazon_seguro(p.url)
-        elif store == "aliexpress":
-            p.url = construir_link_aliexpress_seguro(p.url)
-        elif store == "shopee":
-            p.url = construir_link_shopee_seguro(p.url)
-    return produtos
-
-# ==============================================================================
-# BANCOS DE TERMOS INTELIGENTES DIRECIONADOS POR LOJA
+# BANCO DE TERMOS INTELIGENTES DE PET SHOP / BANHO & TOSA
 # ==============================================================================
 TERMOS_MERCADOLIVRE = [
-    "colonia pet fixacao profissional",
-    "shampoo pet caes 5 litros",
-    "soprador pet banho e tosa",
+    "colonia pet fixacao duradoura",
+    "shampoo pet caes 5 litros galao",
+    "soprador pet banho e tosa kyklon",
+    "secador pet profissional banho e tosa",
     "maquina de tosa caes profissional",
-    "mesa de tosa dobravel pet",
-    "secador pet profissional tosa",
     "lamina de tosa 10 profissional",
-    "toalha alta absorcao pet banho tosa",
-    "perfume pet duradouro caes"
+    "lamina de tosa 40 cirurgica",
+    "mesa de tosa dobravel banho tosa",
+    "toalha alta absorcao banho e tosa",
+    "lacos pet banho e tosa atacado",
+    "gravatas pet atacado banho tosa",
+    "rasqueadeira profissional desembolador pet",
+    "tesoura tosa tubarao curva pet"
 ]
 
 TERMOS_AMAZON = [
     "shampoo pet caes 5 litros",
     "condicionador pet caes 5 litros",
     "mascara hidratacao pet profissional",
-    "rasqueadeira profissional pet",
-    "tesoura tosa curva pet",
-    "maquina tosa caes profissional",
+    "rasqueadeira profissional pet cachorro",
+    "tesoura tosa curva profissional",
+    "maquina tosa caes profissional wahl",
     "alicate cortador unha pet cachorro",
-    "desembolador de pelos pet"
+    "desembolador de pelos pet cães",
+    "perfume pet colonia caes",
+    "toalha banho pet alta absorcao"
 ]
-
-TERMOS_ALIEXPRESS = [
-    "maquina tosa pet profissional",
-    "tesoura tosa tubarao",
-    "tesoura tosa curva",
-    "pente aco tosa cao",
-    "laminas tosa pet",
-    "rasqueadeira autolimpante cao",
-    "lixa unha pet cachorro",
-    "kit tosa tesouras pet"
-]
-
-TERMOS_SHOPEE = [
-    "lacos pet banho e tosa atacado",
-    "bandanas pet atacado banho tosa",
-    "gravata pet atacado",
-    "shampoo pet 5 litros",
-    "perfume pet fixacao",
-    "toalha banho pet alta absorcao",
-    "rasqueadeira pet cao"
-]
-
-def extrair_id_unico(produto: Product) -> str:
-    url = produto.url
-    m_mlb = re.search(r'(MLB\d+)', url)
-    if m_mlb:
-        return f"ml_{m_mlb.group(1)}"
-    m_asin = re.search(r'/(?:dp|gp/product)/([A-Z0-9]{10})', url)
-    if m_asin:
-        return f"amz_{m_asin.group(1)}"
-    m_ali = re.search(r'/item/(\d+)\.html', url)
-    if m_ali:
-        return f"ali_{m_ali.group(1)}"
-    m_shp = re.search(r'product/(\d+/\d+)', url)
-    if m_shp:
-        return f"shp_{m_shp.group(1)}"
-    return url.split('?')[0]
 
 # ==============================================================================
-# GARIMPO ISOLADO: 4 LOJAS (SEM NENHUM BROWSER DO WHATSAPP ABERTO)
+# GARIMPO LIMPO: MERCADO LIVRE + AMAZON
 # ==============================================================================
-def buscar_proximo_lote_ofertas(historico: Set[str]) -> List[Product]:
-    """
-    Varre as 4 lojas de forma sequencial limpa no thread principal.
-    Como o WhatsApp NÃO está aberto neste momento, não há nenhum conflito
-    de 'Playwright Sync API inside the asyncio loop'.
-    """
-    print("\n" + "=" * 70)
-    print("  🐾 GARIMPANDO NOVAS OFERTAS NAS 4 LOJAS (SEM LIMITE) 🐾")
-    print(f"  Histórico: {len(historico)} produtos já postados hoje")
-    print("=" * 70)
-
+def garimpar_ofertas_prod(historico: Set[str]) -> List[Product]:
     termo_ml = random.choice(TERMOS_MERCADOLIVRE)
     termo_amz = random.choice(TERMOS_AMAZON)
-    termo_ali = random.choice(TERMOS_ALIEXPRESS)
-    termo_shp = random.choice(TERMOS_SHOPEE)
 
-    raw_products: List[Product] = []
+    print("\n" + "=" * 72)
+    print("  🐾 GARIMPO PET SHOP / BANHO & TOSA: MERCADO LIVRE & AMAZON 🐾")
+    print(f"  Itens já enviados hoje: {len(historico)}")
+    print("=" * 72)
+
+    raw_items: List[Product] = []
 
     # 1. Mercado Livre
-    print(f"\n[1/4] 🛒 Varrendo Mercado Livre: '{termo_ml}'...")
+    print(f"\n[1/2] 🛒 Mercado Livre: Pesquisando '{termo_ml}'...")
     try:
         ml = MercadoLivreScraper(headless=False)
-        items = ml.search(termo_ml, max_items=12)
-        print(f"      [✔] ML: {len(items)} itens coletados")
-        raw_products.extend(items)
+        items = ml.search(termo_ml, max_items=15)
+        print(f"      [✔] {len(items)} produtos encontrados no Mercado Livre")
+        raw_items.extend(items)
     except Exception as e:
-        print(f"      [!] ML: {e}")
+        print(f"      [!] Erro no Mercado Livre: {e}")
 
     # 2. Amazon
-    print(f"[2/4] 📦 Varrendo Amazon Prime: '{termo_amz}'...")
+    print(f"\n[2/2] 📦 Amazon Prime: Pesquisando '{termo_amz}'...")
     try:
         amz = AmazonScraper(headless=True)
-        items = amz.search(termo_amz, max_items=12)
-        print(f"      [✔] Amazon: {len(items)} itens coletados")
-        raw_products.extend(items)
+        items = amz.search(termo_amz, max_items=15)
+        print(f"      [✔] {len(items)} produtos encontrados na Amazon")
+        raw_items.extend(items)
     except Exception as e:
-        print(f"      [!] Amazon: {e}")
+        print(f"      [!] Erro na Amazon: {e}")
 
-    # 3. AliExpress
-    print(f"[3/4] ✈️ Varrendo AliExpress Choice: '{termo_ali}'...")
-    try:
-        ali = SafeAliExpressScraper(headless=True)
-        items = ali.search(termo_ali, max_items=12)
-        print(f"      [✔] AliExpress: {len(items)} itens coletados")
-        raw_products.extend(items)
-    except Exception as e:
-        print(f"      [!] AliExpress: {e}")
-
-    # 4. Shopee
-    print(f"[4/4] 🛍️ Varrendo Shopee Brasil: '{termo_shp}'...")
-    try:
-        shp = SafeShopeeScraper(headless=True)
-        items = shp.search(termo_shp, max_items=12)
-        print(f"      [✔] Shopee: {len(items)} itens coletados")
-        raw_products.extend(items)
-    except Exception as e:
-        print(f"      [!] Shopee: {e}")
-
-    # Normalização de atributos para todos os produtos coletados
-    for p in raw_products:
-        normalizar_produto(p)
-
-    # Filtragem Pet + Remoção de já enviados
+    # Normalização e Filtragem Estrita
     validos: List[Product] = []
-    for p in deduplicate_products(raw_products):
+    for p in deduplicate_products(raw_items):
         normalizar_produto(p)
         if not validar_produto_pet(p):
             continue
         uid = extrair_id_unico(p)
         if uid in historico:
             continue
-        
         price = get_preco_produto(p)
-        # Aceita produtos na faixa de preço válida de Banho & Tosa
-        if 4.0 <= price <= 25000.0:
+        if 5.0 <= price <= 25000.0:
             validos.append(p)
 
-    validos = aplicar_links_afiliados_robusto(validos)
-    print(f"\n[✔] {len(validos)} Novas Ofertas Inéditas Qualificadas encontradas nesta varredura!")
+    validos = aplicar_links_afiliados(validos)
+    print(f"\n[✔] {len(validos)} Novas Ofertas Inéditas Qualificadas encontradas!")
     return validos
 
-def balancear_lote_por_loja(candidatos: List[Product], max_por_rodada: int = 4) -> List[Product]:
-    """Garante que a rodada envie um mix diversificado das 4 lojas sem perder produtos."""
+def montar_lote_equilibrado(candidatos: List[Product], max_items: int = 4) -> List[Product]:
+    """Garante um mix equilibrado entre Mercado Livre e Amazon, com melhores descontos."""
     if not candidatos:
         return []
 
-    por_loja = {"shopee": [], "mercadolivre": [], "amazon": [], "aliexpress": [], "outros": []}
-    for p in candidatos:
-        chave = normalizar_loja(getattr(p, "store", ""))
-        por_loja.setdefault(chave, []).append(p)
+    meli = [p for p in candidatos if "mercado" in (p.store or "").lower()]
+    amz = [p for p in candidatos if "amazon" in (p.store or "").lower()]
 
-    # Ordena as listas internas de cada loja: maior desconto primeiro
-    for st_list in por_loja.values():
-        st_list.sort(key=lambda x: (getattr(x, "discount_percent", 0) or 0), reverse=True)
+    meli.sort(key=lambda x: (getattr(x, "discount_percent", 0) or 0, getattr(x, "rating", 0) or 0), reverse=True)
+    amz.sort(key=lambda x: (getattr(x, "discount_percent", 0) or 0, getattr(x, "rating", 0) or 0), reverse=True)
 
-    selecionados: List[Product] = []
+    lote: List[Product] = []
 
-    # 1. Pega 1 produto de cada uma das 4 lojas prioritárias se disponível
-    for st_name in ["mercadolivre", "amazon", "shopee", "aliexpress"]:
-        if por_loja.get(st_name):
-            selecionados.append(por_loja[st_name].pop(0))
+    # Alterna entre as lojas
+    while len(lote) < max_items and (meli or amz):
+        if meli and len(lote) < max_items:
+            lote.append(meli.pop(0))
+        if amz and len(lote) < max_items:
+            lote.append(amz.pop(0))
 
-    # 2. Se sobrou vaga no lote, completa com as de maior desconto geral
-    sobras = [p for lista in por_loja.values() for p in lista]
-    sobras.sort(key=lambda x: (getattr(x, "discount_percent", 0) or 0), reverse=True)
-    while len(selecionados) < max_por_rodada and sobras:
-        selecionados.append(sobras.pop(0))
-
-    return selecionados[:max_por_rodada]
+    return lote
 
 # ==============================================================================
-# POSTAGEM FURTIVA (STEALTH) NO WHATSAPP
+# POSTAGEM HUMANA FURTIVA NO WHATSAPP (ANTI-BAN)
 # ==============================================================================
-def enviar_com_cuidado_humano(page: Page, deal: Product, caption: str) -> bool:
-    """
-    Envia com comportamento 100% humano para passar despercebido:
-    - Digitação ritmada com micro-pausas
-    - Upload suave de foto real
-    - Pausa antes do Enter
-    """
+def postar_com_comportamento_humano(page: Page, deal: Product, caption: str) -> bool:
     try:
+        # Fecha eventuais modais ou caixas abertas
         dialog = page.locator("div[role='dialog']").first
         if dialog.count() > 0 and dialog.is_visible():
             page.keyboard.press("Escape")
-            time.sleep(random.uniform(0.5, 1.2))
+            time.sleep(random.uniform(0.6, 1.2))
 
-        # 1. TENTA ENVIAR COM FOTO REAL
+        # 1. Tenta baixar e enviar a Foto Real
         img_path = None
         if getattr(deal, "image_url", None) and deal.image_url.startswith("http"):
             img_path = MediaManager.download_product_image(deal.image_url)
@@ -737,7 +368,7 @@ def enviar_com_cuidado_humano(page: Page, deal: Product, caption: str) -> bool:
                         break
 
                 if attach_btn:
-                    time.sleep(random.uniform(1.0, 2.0))
+                    time.sleep(random.uniform(1.2, 2.2))
                     attach_btn.click()
                     time.sleep(random.uniform(1.0, 1.8))
 
@@ -747,31 +378,33 @@ def enviar_com_cuidado_humano(page: Page, deal: Product, caption: str) -> bool:
                             photo_opt = page.locator("text=/Fotos e vídeos/i").first
                         photo_opt.click()
 
-                    file_chooser = fc_info.value
-                    file_chooser.set_files(str(img_path))
+                    fc = fc_info.value
+                    fc.set_files(str(img_path))
                     time.sleep(random.uniform(2.5, 4.0))
 
                     caption_box = page.locator("div[contenteditable='true'][role='textbox']").last
                     caption_box.wait_for(state="visible", timeout=12000)
                     caption_box.focus()
 
+                    # Digitação humana linha a linha
                     lines = caption.split("\n")
                     for l_idx, line in enumerate(lines):
                         if line:
-                            caption_box.type(line, delay=random.randint(4, 12))
+                            caption_box.type(line, delay=random.randint(6, 16))
                         if l_idx < len(lines) - 1:
                             page.keyboard.press("Shift+Enter")
-                            time.sleep(random.uniform(0.1, 0.3))
+                            time.sleep(random.uniform(0.12, 0.3))
 
+                    # Pausa natural antes de enviar
                     time.sleep(random.uniform(2.5, 4.5))
                     page.keyboard.press("Enter")
-                    time.sleep(random.uniform(3.5, 6.0))
+                    time.sleep(random.uniform(3.5, 5.5))
                     print("      [✔] Oferta postada com foto real e legenda!")
                     return True
             except Exception as img_err:
-                print(f"      [!] Anexo de foto falhou ({img_err}). Usando preview de link...")
+                print(f"      [!] Foto falhou ({img_err}). Enviando com prévia de link...")
 
-        # 2. ENVIO VIA CAIXA DE TEXTO COM PREVIEW DO LINK
+        # 2. Envio via caixa de texto com prévia de link
         chat_box = page.locator("footer div[contenteditable='true']").first
         chat_box.wait_for(state="visible", timeout=15000)
         chat_box.focus()
@@ -779,13 +412,14 @@ def enviar_com_cuidado_humano(page: Page, deal: Product, caption: str) -> bool:
         lines = caption.split("\n")
         for l_idx, line in enumerate(lines):
             if line:
-                chat_box.type(line, delay=random.randint(4, 10))
+                chat_box.type(line, delay=random.randint(6, 14))
             if l_idx < len(lines) - 1:
                 page.keyboard.press("Shift+Enter")
                 time.sleep(random.uniform(0.1, 0.25))
 
-        tempo_preview = random.uniform(6.0, 8.5)
-        print(f"      ⏳ Aguardando prévia de link ({tempo_preview:.1f}s)...")
+        # Espera carregar a prévia do link do Mercado Livre / Amazon
+        tempo_preview = random.uniform(6.5, 9.0)
+        print(f"      ⏳ Aguardando prévia de link ({tempo_preview:.1f}s)... ")
         time.sleep(tempo_preview)
 
         page.keyboard.press("Enter")
@@ -798,17 +432,16 @@ def enviar_com_cuidado_humano(page: Page, deal: Product, caption: str) -> bool:
         return False
 
 # ==============================================================================
-# DISPARADOR DO LOTE NO WHATSAPP COM PROTEÇÃO ANTI-BAN
+# CICLO DE DISPARO NO WHATSAPP COM FECHAMENTO SEGURO
 # ==============================================================================
-def enviar_lote_whatsapp(lote: List[Product], historico: Set[str], rodada_num: int) -> int:
+def enviar_lote_para_whatsapp(lote: List[Product], historico: Set[str], rodada_num: int) -> int:
     if not lote:
-        print("[!] Lote vazio. Operação no WhatsApp cancelada.")
         return 0
 
     grupo = getattr(config, "DEFAULT_WHATSAPP_GROUP", "Achadinhos banho & tosa 🐶")
     print(f"\n📲 Abrindo WhatsApp Web no grupo '{grupo}' para envio de {len(lote)} oferta(s)...")
     sender = WhatsAppSender()
-    enviados_com_sucesso = 0
+    enviados = 0
 
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
@@ -829,113 +462,172 @@ def enviar_lote_whatsapp(lote: List[Product], historico: Set[str], rodada_num: i
         try:
             page.wait_for_selector("div#pane-side, div[role='textbox']", timeout=60000)
         except Exception:
-            print("[!] WhatsApp Web demorou a carregar. Verifique o QR Code ou a conexão.")
+            print("[!] WhatsApp Web demorou a responder. Verifique QR Code ou conexão.")
             context.close()
             return 0
 
         if not sender.open_group_chat(page, grupo):
-            print(f"[!] Não foi possível abrir o grupo '{grupo}'.")
+            print(f"[!] Não foi possível encontrar ou abrir o grupo '{grupo}'.")
             context.close()
             return 0
 
         for idx, deal in enumerate(lote, start=1):
             normalizar_produto(deal)
             uid = extrair_id_unico(deal)
-            hora_atual = datetime.now().strftime("%H:%M:%S")
-            loja_nome = deal.store.upper()
-            preco_formatado = get_preco_produto(deal)
-            disc_formatado = getattr(deal, "discount_percent", 0.0) or 0.0
+            hora = datetime.now().strftime("%H:%M:%S")
+            loja = deal.store.upper()
+            preco = get_preco_produto(deal)
+            desc = getattr(deal, "discount_percent", 0.0) or 0.0
 
-            print(f"\n[{hora_atual}] 📢 Postando Oferta [{idx}/{len(lote)}] [{loja_nome}]")
-            print(f"      📌 {deal.title[:55]}...")
-            print(f"      💰 R$ {preco_formatado:.2f} ({disc_formatado:.0f}% OFF)")
+            print(f"\n[{hora}] 📢 Postando [{idx}/{len(lote)}] [{loja}]")
+            print(f"      📌 {deal.title[:60]}...")
+            print(f"      💰 R$ {preco:.2f} ({desc:.0f}% OFF)")
+            print(f"      🔗 Link: {deal.url}")
 
             caption = format_single_deal_message(deal, idx, len(lote))
-            ok = enviar_com_cuidado_humano(page, deal, caption)
+            sucesso = postar_com_comportamento_humano(page, deal, caption)
 
-            if ok:
-                enviados_com_sucesso += 1
+            if sucesso:
+                enviados += 1
                 historico.add(uid)
                 salvar_historico(historico)
 
-            # Se ainda restam itens neste lote, aguarda intervalo furtivo humano
+            # Pausa furtiva humana entre postagens do mesmo lote (10 a 15 minutos)
             if idx < len(lote):
-                minutos_espera = random.uniform(11.0, 16.0)
-                segundos_espera = int(minutos_espera * 60)
-                proximo_envio = datetime.now() + timedelta(seconds=segundos_espera)
-                print(f"\n   💤 [MODO FURTIVO] Intervalo anti-ban: Próxima oferta às {proximo_envio.strftime('%H:%M:%S')} (~{minutos_espera:.1f} min)...")
+                minutos_espera = random.uniform(10.0, 15.0)
+                segundos = int(minutos_espera * 60)
+                proximo = datetime.now() + timedelta(seconds=segundos)
+                print(f"\n   🛡️ [MODO FURTIVO] Pausa anti-ban entre postagens: Próxima às {proximo.strftime('%H:%M:%S')} (~{minutos_espera:.1f} min)...")
 
-                while segundos_espera > 0:
-                    step = min(60, segundos_espera)
+                while segundos > 0:
+                    step = min(60, segundos)
                     time.sleep(step)
-                    segundos_espera -= step
-                    if segundos_espera > 0 and segundos_espera % 180 == 0:
-                        print(f"      ⏳ Faltam {segundos_espera // 60} minuto(s) para a próxima oferta...")
+                    segundos -= step
+                    if segundos > 0 and segundos % 180 == 0:
+                        print(f"      ⏳ Restam {segundos // 60} minuto(s) para a próxima postagem...")
 
-        time.sleep(5)
+        time.sleep(4)
         context.close()
-        print(f"\n[✔] Lote #{rodada_num} finalizado no WhatsApp com {enviados_com_sucesso} ofertas entregues!")
-        return enviados_com_sucesso
+        print(f"\n[✔] Lote #{rodada_num} concluído: {enviados} ofertas entregues!")
+        return enviados
 
 # ==============================================================================
-# MOTOR PRINCIPAL CONTÍNUO (SEM LIMITE + ZERO CONFLITO PLAYWRIGHT)
+# CONTROLE DE HORÁRIO OPERACIONAL (09:00 ÀS 21:00)
 # ==============================================================================
-def executar_cacador_continuo():
+HORA_INICIO = 9   # 09:00 da manhã
+HORA_FIM = 21     # 21:00 da noite
+
+def esta_no_horario_operacional() -> bool:
+    """Verifica se o momento atual está dentro da janela de postagem (09h às 21h)."""
+    agora = datetime.now()
+    return HORA_INICIO <= agora.hour < HORA_FIM
+
+def aguardar_horario_comercial():
+    """
+    Se estiver fora do horário (antes das 09h ou depois das 21h),
+    coloca o bot em modo de espera inteligente e avisa a hora de retorno.
+    """
+    while not esta_no_horario_operacional():
+        agora = datetime.now()
+        # Calcula quando será o próximo início às 09:00
+        if agora.hour >= HORA_FIM:
+            proximo_inicio = (agora + timedelta(days=1)).replace(hour=HORA_INICIO, minute=0, second=0, microsecond=0)
+        else:
+            proximo_inicio = agora.replace(hour=HORA_INICIO, minute=0, second=0, microsecond=0)
+
+        tempo_espera = (proximo_inicio - agora).total_seconds()
+        horas = int(tempo_espera // 3600)
+        minutos = int((tempo_espera % 3600) // 60)
+
+        print("\n" + "🌙" * 38)
+        print(f" [MODO NOTURNO / STANDBY] Horário atual: {agora.strftime('%H:%M:%S')}")
+        print(f" [JANELA OPERACIONAL] O bot opera diariamente das {HORA_INICIO:02d}:00 às {HORA_FIM:02d}:00.")
+        print(f" [RETORNO] Próximo disparo programado para: {proximo_inicio.strftime('%d/%m/%Y às %H:%M:%S')}")
+        print(f" [TEMPO RESTANTE] Faltam aproximadamente {horas}h {minutos}min de descanso.")
+        print("🌙" * 38 + "\n")
+
+        # Espera em blocos de até 15 minutos para manter a aplicação responsiva
+        tempo_sono = min(900, max(30, int(tempo_espera)))
+        time.sleep(tempo_sono)
+
+# ==============================================================================
+# LOOP CONTÍNUO DE PRODUÇÃO (09:00 ÀS 21:00)
+# ==============================================================================
+def executar_producao_pet_hunter():
     print("\n" + "=" * 75)
-    print("      🛡️ PROMOPET HUNTER - MODO FURTIVO CONTÍNUO (SEM LIMITE) 🛡️")
-    print("      Operação Orgânica o Dia Todo nas 4 Maiores Plataformas:")
-    print("      🛒 Mercado Livre | 📦 Amazon | ✈️ AliExpress | 🛍️ Shopee")
-    print("      Proteção Anti-Ban: Intervalos Humanos, Digitação Real e Pausas")
+    print("    🛡️ PROMOPET HUNTER PROD - MERCADO LIVRE & AMAZON 🛡️")
+    print("    Ambiente Estável de Produção | Nicho Exclusivo Pet Shop / Banho & Tosa")
+    print(f"    Horário Operacional Automático: Diariamente das {HORA_INICIO:02d}:00 às {HORA_FIM:02d}:00")
+    print("    Etiqueta ML: n3v35 | Tag Amazon: n3v35-20 | Proteção Anti-Ban Ativa")
     print("=" * 75)
 
     historico = carregar_historico()
+    data_ultimo_reset = datetime.now().date()
     rodada = 1
 
     while True:
+        # Se estiver fora do horário (ex: noite/madrugada), aguarda até as 09:00
+        aguardar_horario_comercial()
+
+        # Reset diário de histórico para permitir novas promoções em novo dia
+        data_hoje = datetime.now().date()
+        if data_hoje > data_ultimo_reset:
+            print(f"\n🌅 Novo dia iniciado ({data_hoje.strftime('%d/%m/%Y')})! Resetando histórico diário...")
+            historico.clear()
+            salvar_historico(historico)
+            data_ultimo_reset = data_hoje
+            rodada = 1
+
+        hora_atual_str = datetime.now().strftime('%H:%M:%S')
         print(f"\n" + "#" * 70)
-        print(f"   🚀 INICIANDO RODADA #{rodada} DE GARIMPO (4 LOJAS)")
-        print(f"   Total de ofertas já postadas hoje: {len(historico)}")
+        print(f"   🚀 INICIANDO RODADA #{rodada} DE GARIMPO [{hora_atual_str}]")
+        print(f"   Janela de Operação: 09:00 às 21:00 | Itens já postados hoje: {len(historico)}")
         print("#" * 70)
 
-        # 1. GARIMPA AS 4 LOJAS COM BROWSER DO WHATSAPP FECHADO (ZERO CONFLITO)
-        todas_ofertas = buscar_proximo_lote_ofertas(historico)
+        # 1. Garimpa Mercado Livre e Amazon com WhatsApp FECHADO (Zero Conflito)
+        ofertas = garimpar_ofertas_prod(historico)
 
-        if not todas_ofertas:
-            print("\n💤 Nenhuma nova oferta qualificada no momento. Aguardando 3 minutos para nova varredura...")
+        if not ofertas:
+            print("\n💤 Nenhuma nova oferta qualificada no momento. Aguardando 3 minutos...")
             time.sleep(3 * 60)
             continue
 
-        # 2. BALANCEIA O LOTE PARA TER VARIEDADE DE LOJAS (3 a 4 OFERTAS POR LOTE)
-        lote_selecionado = balancear_lote_por_loja(todas_ofertas, max_por_rodada=4)
+        # 2. Seleciona até 4 super ofertas equilibradas
+        lote = montar_lote_equilibrado(ofertas, max_items=4)
 
-        # Se por qualquer motivo não houver itens selecionados, NÃO abre o WhatsApp
-        if not lote_selecionado:
-            print("\n💤 Nenhum produto restante para este lote. Aguardando 3 minutos...")
+        if not lote:
+            print("\n💤 Nenhuma oferta passou no filtro para este lote. Aguardando 3 minutos...")
             time.sleep(3 * 60)
             continue
 
-        print(f"\n🎯 {len(lote_selecionado)} Super Ofertas Selecionadas para este Lote:")
-        for idx, item in enumerate(lote_selecionado, 1):
+        print(f"\n🎯 {len(lote)} Super Ofertas Selecionadas para Postagem:")
+        for idx, item in enumerate(lote, 1):
             normalizar_produto(item)
-            preco_item = get_preco_produto(item)
-            disc_item = getattr(item, "discount_percent", 0.0) or 0.0
-            print(f"   [{idx}] {item.store.upper():<12} | R$ {preco_item:>6.2f} ({disc_item:>2.0f}% OFF) | {item.title[:45]}...")
+            preco = get_preco_produto(item)
+            desc = getattr(item, "discount_percent", 0.0) or 0.0
+            print(f"   [{idx}] {item.store.upper():<12} | R$ {preco:>6.2f} ({desc:>2.0f}% OFF) | {item.title[:45]}...")
 
-        # 3. ABRE O WHATSAPP E POSTA COM ESPAÇAMENTO ORGÂNICO ANTI-BAN
-        enviadas = enviar_lote_whatsapp(lote_selecionado, historico, rodada)
+        # 3. Posta no WhatsApp de forma furtiva
+        enviar_lote_para_whatsapp(lote, historico, rodada)
 
-        # 4. PAUSA NATURAL DE DESCANSO ENTRE RODADAS (SIMULA COMPORTAMENTO HUMANO)
+        # Se após a postagem o horário das 21h for atingido, entra em standby
+        if not esta_no_horario_operacional():
+            print(f"\n🔔 [EXPEDIENTE FINALIZADO] Atingido o limite das {HORA_FIM:02d}:00.")
+            aguardar_horario_comercial()
+            continue
+
+        # 4. Pausa de descanso natural entre rodadas (22 a 32 minutos)
         pausa_minutos = random.uniform(22.0, 32.0)
-        previsao_volta = datetime.now() + timedelta(minutes=pausa_minutos)
-        print(f"\n☕ [MODO FURTIVO] Rodada #{rodada} concluída!")
-        print(f"   Pausa natural de descanso anti-ban: {pausa_minutos:.0f} minutos.")
-        print(f"   Próxima rodada de garimpo começará às {previsao_volta.strftime('%H:%M:%S')}...")
+        volta = datetime.now() + timedelta(minutes=pausa_minutos)
+        print(f"\n☕ [MODO FURTIVO] Rodada #{rodada} finalizada com sucesso!")
+        print(f"   Descanso orgânico anti-ban: {pausa_minutos:.0f} minutos.")
+        print(f"   Próxima rodada de garimpo iniciará às {volta.strftime('%H:%M:%S')}...")
 
         time.sleep(pausa_minutos * 60)
         rodada += 1
 
 if __name__ == "__main__":
     try:
-        executar_cacador_continuo()
+        executar_producao_pet_hunter()
     except KeyboardInterrupt:
-        print("\n\n[🛑] PromoPet Hunter pausado pelo usuário. Histórico preservado com segurança!")
+        print("\n\n[🛑] PromoPet Hunter pausado pelo usuário. Histórico preservado!")

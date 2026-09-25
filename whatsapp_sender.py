@@ -14,15 +14,20 @@ class WhatsAppSender:
         self.profile_dir.mkdir(parents=True, exist_ok=True)
 
     def setup_session(self):
-        print("'\n" + "=" * 70)
-        print("  📲 AUTENTICAÇO DO WHATSAPP WEB")
+        print("\n" + "=" * 70)
+        print("  📲 AUTENTICAÇÃO DO WHATSAPP WEB")
         print("=" * 70)
         with sync_playwright() as p:
             context = p.chromium.launch_persistent_context(
                 user_data_dir=str(self.profile_dir),
                 channel="chrome",
                 headless=False,
-                args=["--disable-blink-features=AutomationControlled"],
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-session-crashed-bubble",
+                    "--disable-features=InfiniteSessionRestore",
+                    "--no-first-run",
+                ],
                 viewport={"width": 1280, "height": 800}
             )
             page = context.new_page()
@@ -38,13 +43,16 @@ class WhatsAppSender:
     def open_group_chat(self, page: Page, group_name: str) -> bool:
         print(f"    🔔 Buscando grupo: '{group_name}'...")
         clean_search = re.sub(r"[^\w\sÀ-ÿ&-]", "", group_name).strip()
+        # Palavra mais distintiva do nome do grupo, pra filtrar o resultado certo
+        # na lista de busca (mais confiável que confiar no Enter escolher certo).
+        primeira_palavra = clean_search.split()[0] if clean_search else group_name
 
         try:
             search_box = None
             for sel in [
-                "dif[contenteditable='true'][data-tab='3']",
+                "div[contenteditable='true'][data-tab='3']",
                 "div[role='textbox'][title*='Pesquisar']",
-                "dif[contenteditable='true']",
+                "div[contenteditable='true']",
             ]:
                 candidate = page.locator(sel).first
                 if candidate.is_visible():
@@ -64,23 +72,52 @@ class WhatsAppSender:
             search_box.type(clean_search, delay=35)
             time.sleep(2.0)
 
-            # Pressiona Enter para abrir o grupo
-            page.keyboard.press("Enter")
-            time.sleep(2.0)
-
-            msg_box = page.locator("footer div[contenteditable='true']").first
-            if msg_box.is_visible():
-                print(f"    [✔] Grupo '{group_name}' aberto com sucesso!")
-                return True
-
+            # Clica direto no resultado certo da busca (mais confiável que Enter,
+            # que pode selecionar o item errado se houver mais conversas/contatos
+            # parecidos na lista).
             list_item = page.locator("div[role='listitem']").filter(
-                has_text=re.compile("Achadinhos", re.IGNORECASE)
+                has_text=re.compile(re.escape(primeira_palavra), re.IGNORECASE)
             ).first
-            if list_item.is_visible():
+            try:
+                list_item.wait_for(state="visible", timeout=8000)
                 list_item.click()
-                time.sleep(2.0)
-                print(f"    [✔] Grupo aberto via clique no card!")
-                return True
+            except Exception:
+                # Reserva: se não achou na lista de resultados, tenta Enter mesmo assim
+                page.keyboard.press("Enter")
+
+            # Espera de verdade a conversa carregar (não é só uma checagem instantânea) —
+            # popups do próprio Chrome (ex: "Restaurar páginas?") podem roubar o foco
+            # bem nesse momento, então confirmamos com calma antes de seguir em frente.
+            try:
+                msg_box = page.locator("footer div[contenteditable='true']").first
+                msg_box.wait_for(state="visible", timeout=10000)
+
+                # Confere também se o cabeçalho da conversa bate com o grupo certo,
+                # pra não confundir com outra conversa aberta por engano. Usa o header
+                # DENTRO do painel principal (div#main) — a página tem mais de um
+                # elemento <header>, e o errado (barra lateral) derrubava essa checagem.
+                header_ok = True
+                try:
+                    header = page.locator("div#main header, #main header").first
+                    if header.count() > 0:
+                        header_text = header.inner_text(timeout=3000)
+                        if primeira_palavra.lower() not in header_text.lower():
+                            header_ok = False
+                    # Se não achou nenhum header dentro do painel principal, não
+                    # rejeita por causa disso — a caixa de mensagem já apareceu,
+                    # que já é um bom sinal de que a conversa certa abriu.
+                except Exception:
+                    pass
+
+                if header_ok:
+                    print(f"    [✔] Grupo '{group_name}' aberto com sucesso!")
+                    return True
+                else:
+                    print(f"    [!] Uma conversa abriu, mas o cabeçalho não bate com '{group_name}'.")
+                    page.screenshot(path="debug_grupo_nao_encontrado.png")
+            except Exception:
+                print(f"    [!] A caixa de mensagem não apareceu depois de clicar no resultado da busca.")
+                page.screenshot(path="debug_grupo_nao_encontrado.png")
 
         except Exception as e:
             print(f"    [!] Erro ao abrir grupo: {e}")
@@ -102,7 +139,7 @@ class WhatsAppSender:
                 print(f"    📺 Anexando foto do produto: {img_path.name}...")
                 try:
                     attach_btn = page.locator(
-                        "button[title*='Anexar'`i], span[data-icon='plus'], span[data-icon='attach-menu-plus']"
+                        "button[title*='Anexar' i], span[data-icon='plus'], span[data-icon='attach-menu-plus']"
                     ).first
                     attach_btn.wait_for(state="visible", timeout=5000)
                     attach_btn.click()
@@ -168,7 +205,12 @@ class WhatsAppSender:
                 user_data_dir=str(self.profile_dir),
                 channel="chrome",
                 headless=False,
-                args=["--disable-blink-features=AutomationControlled"],
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-session-crashed-bubble",
+                    "--disable-features=InfiniteSessionRestore",
+                    "--no-first-run",
+                ],
                 viewport={"width": 1280, "height": 800}
             )
             page = context.new_page()

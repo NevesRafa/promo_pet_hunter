@@ -1,22 +1,33 @@
-# 🐾 PromoPet Hunter - Rastreador Discreto de Ofertas Petshop & Banho e Tosa
+# 🐾 PromoPet Hunter
 
-O **PromoPet Hunter** é um script de automação desenvolvido especialmente para o nicho de **Banho e Tosa / Petshop**. Ele varre as plataformas **Mercado Livre**, **Amazon** e **Shopee**, filtrando apenas produtos em **promoção real** e com **ótimas avaliações**, exportando tudo de forma organizada para **Planilha Excel (.xlsx)** e **Bloco de Notas (.txt / .csv)**.
+Robô de garimpo e postagem automática de promoções **Pet Shop / Banho & Tosa**
+no WhatsApp, com afiliado do **Mercado Livre** e da **Amazon**.
 
----
-
-## 🛡️ Arquitetura de Discrição e Anti-Bloqueio
-
-Para atender à exigência de discrição máxima e evitar bloqueios de IP ou CAPTCHAs:
-1. **Playwright com Stealth Mode:** Oculta propriedades de automação (`navigator.webdriver`, codecs, plugins e assinaturas de headless).
-2. **Janela Oculta (Off-Screen):** O navegador roda com coordenadas fora da área visível do monitor (`--window-position=-2400,-2400`), garantindo 100% de passagem por proteções antibot sem janelas pulando na sua tela.
-3. **Delays Humanos Aleatórios (Jitter):** Pausas de 2.5 a 5.0 segundos entre requisições para simular a velocidade de leitura humana.
-4. **Tratamento de Sessão Persistente:** Reutiliza cookies e tokens locais para manter histórico de navegação válido.
+> Shopee e AliExpress ficam para a próxima versão. Os scrapers continuam no
+> projeto, guardados em `proxima_versao/`, só não são usados por enquanto.
 
 ---
 
-## 📋 Pré-requisitos e Instalação
+## ✅ O que o robô garante
 
-As dependências já estão instaladas no seu ambiente. Caso queira reinstalar ou rodar em outra máquina:
+- **Desconto real, sempre.** Só posta produtos com desconto igual ou maior
+  que `config.MIN_DISCOUNT_PERCENT` (10% por padrão) — nada de 0% passando
+  como promoção.
+- **Nunca repete produto no mesmo dia.** Um histórico local
+  (`historico_enviados.json`) lembra tudo que já foi postado hoje e reseta
+  sozinho à meia-noite.
+- **Só produto pet de verdade.** Uma lista de palavras obrigatórias/proibidas
+  filtra resultados fora do nicho (automotivo, cabelo humano, bebê, etc.).
+- **Roda o dia todo**, dentro da janela configurada (09h–21h por padrão),
+  com pausas humanas entre postagens e entre rodadas de garimpo, pra não
+  levar bloqueio.
+- **Cobertura ampla de produtos**: máquinas de tosa, lâminas, tesouras,
+  shampoos, secadores, mesas, rasqueadeiras, laços, bandanas, coleiras e
+  mais — veja `config.TERMOS_MERCADOLIVRE` / `config.TERMOS_AMAZON`.
+
+---
+
+## 📋 Instalação
 
 ```bash
 pip install -r requirements.txt
@@ -25,84 +36,64 @@ playwright install chromium
 
 ---
 
-## 🚀 Como Usar
+## 🚀 Como usar
 
-### 1. Conectar seu WhatsApp (Apenas 1 vez)
-Para autorizar o envio automático no WhatsApp Web:
+### 1. Conectar o WhatsApp (uma vez só)
 ```bash
-python main.py --login-whatsapp
+python bot.py --login-whatsapp
 ```
-*(Leia o QR Code com o seu celular. A sessão ficará salva permanentemente na pasta `whatsapp_profile/`).*
+Leia o QR Code com o celular. A sessão fica salva em `whatsapp_profile/`.
+
+### 2. Testar rápido (1 oferta, agora)
+```bash
+python bot.py --test  # envia uma oferta somente para OWNER_WHATSAPP_PHONE
+```
+Garimpa e posta uma oferta imediatamente, ignorando a janela de horário —
+bom pra confirmar que tudo está funcionando antes de deixar rodando.
+
+### 3. Rodar de verdade (garimpo contínuo)
+```bash
+python bot.py
+```
+Fica rodando o dia todo dentro da janela operacional, postando lotes de
+`config.ITENS_POR_LOTE` ofertas por rodada, com pausas anti-ban entre
+postagens e entre rodadas. Fora do horário, o robô entra em standby e
+acorda sozinho no horário configurado.
 
 ---
 
-### 2. Testar o Envio de 1 Oferta com FOTO no seu Grupo
-Para enviar imediatamente 1 promoção com a **foto real** e a legenda no grupo **"Achadinhos banho & tosa"**:
-```bash
-python main.py --test-group
-```
+## ⚙️ Ajustes principais (`config.py`)
+
+| O que mexer | Onde |
+|---|---|
+| Horário de funcionamento | `START_HOUR` / `END_HOUR` |
+| Desconto mínimo aceito | `MIN_DISCOUNT_PERCENT` |
+| Nota mínima / avaliações mínimas | `MIN_RATING` / `MIN_REVIEWS` |
+| Quantas ofertas por rodada | `ITENS_POR_LOTE` |
+| Pausas anti-ban | `PAUSA_ENTRE_POSTAGENS_*` / `PAUSA_ENTRE_RODADAS_*` |
+| Termos de busca | `TERMOS_MERCADOLIVRE` / `TERMOS_AMAZON` |
+| Palavras que barram um produto fora do nicho | `PALAVRAS_PROIBIDAS_NAO_PET` |
+| Grupo de WhatsApp de destino | `DEFAULT_WHATSAPP_GROUP` |
+| Tags de afiliado | `AMAZON_TAG` / `MELI_MATT_TOOL` / `MELI_MATT_WORD` |
 
 ---
 
-### 3. Iniciar o Agendador Automático (09:00 às 19:00)
-Para deixar o robô trabalhando o dia todo com intervalos aleatórios anti-ban:
-```bash
-python main.py --schedule
-```
-* **Horário:** Envia apenas entre as **09:00 e 19:00**. Fora desse horário, ele dorme e acorda sozinho às 09:00.
-* **Intervalo Anti-Ban:** Aguarda de **35 a 60 minutos** (aleatório) entre cada postagem para não incomodar os membros e não sofrer bloqueio.
-* **Foto Real:** Cada oferta sobe com a foto grande nítida do produto e a legenda formatada com seu link de afiliado.
+## 📁 Estrutura do projeto
+
+- `bot.py` — ponto de entrada único: garimpo, filtros, links de afiliado e postagem.
+- `config.py` — todas as configurações num lugar só.
+- `filters.py` — deduplicação de produtos coletados.
+- `templates.py` — formatação chamativa das mensagens do WhatsApp.
+- `whatsapp_sender.py` — automação do WhatsApp Web (login, abrir grupo, postar).
+- `media_manager.py` — download da foto real do produto.
+- `exporters.py` — registro de cada lote postado em Excel/TXT/CSV (`outputs/`).
+- `scrapers/` — coletores do Mercado Livre e da Amazon.
+- `proxima_versao/` — Shopee e AliExpress, guardados para a próxima versão.
 
 ---
 
-### 4. Varredura Normal e Planilhas (Sem WhatsApp)
-```bash
-python main.py
-```
+## 📁 Arquivos gerados
 
-### 3. Selecionar Apenas Determinadas Lojas
-```bash
-# Apenas Mercado Livre e Amazon:
-python main.py --stores mercadolivre amazon
-
-# Apenas Mercado Livre:
-python main.py --stores mercadolivre
-```
-
-### 4. Personalizar os Filtros de Avaliação e Desconto
-```bash
-# Produtos com nota mínima de 4.5 e pelo menos 20% de desconto:
-python main.py --min-rating 4.5 --min-discount 20.0
-
-# Trazer todos os produtos bem avaliados, mesmo sem desconto registrado:
-python main.py --all-deals
-```
-
-### 5. Autenticação na Shopee (Opcional)
-Se a Shopee exigir verificação de quebra-cabeça/slider:
-```bash
-python main.py --login-shopee
-```
-Isso abrirá uma janela do navegador visível para resolver o desafio apenas uma vez. A sessão ficará salva permanentemente na pasta `shopee_profile/` para as próximas buscas automáticas.
-
----
-
-## 📁 Arquivos Gerados (`outputs/`)
-
-A cada execução, o script gera automaticamente na pasta `outputs/`:
-* 📊 **`promocoes_pet_YYYYMMDD_HHMMSS.xlsx`**: Planilha Excel com formatação moderna, cores, percentual de desconto destacado e links clicáveis para abrir direto na loja.
-* 📝 **`promocoes_pet_YYYYMMDD_HHMMSS.txt`**: Formatação limpa em texto, perfeita para visualização rápida no **Bloco de Notas**.
-* 📁 **`promocoes_pet_YYYYMMDD_HHMMSS.csv`**: Formato universal compatível com qualquer ferramenta de dados (codificação UTF-8 com BOM).
-
----
-
-## ⚙️ Arquivos do Projeto
-
-* `main.py`: Ponto de entrada do programa e controle de linha de comando.
-* `config.py`: Lista de termos padrão, intervalos de tempo e thresholds de nota.
-* `filters.py`: Lógica de deduplicação e filtragem de qualidade.
-* `exporters.py`: Geradores dos arquivos Excel, Bloco de Notas e CSV.
-* `scrapers/`:
-  * `mercadolivre.py`: Coletor do Mercado Livre com bypass de PoW/bot challenge.
-  * `amazon.py`: Coletor da Amazon com extração de ofertas e avaliações.
-  * `shopee.py`: Coletor da Shopee com interceptação de rede e fallback.
+- `outputs/lote_postado_*.xlsx` / `.txt` / `.csv` — registro de cada lote postado.
+- `historico_enviados.json` — controle de produtos já postados hoje.
+- `whatsapp_profile/` e `media_cache/` — dados de sessão e cache, não versionar.

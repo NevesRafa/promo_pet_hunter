@@ -26,26 +26,20 @@ def build_mercadolivre_affiliate_url(
     matt_tool: str = config.MELI_MATT_TOOL,
     matt_word: str = config.MELI_MATT_WORD
 ) -> str:
-    """Anexa as tags oficiais de afiliado do Mercado Livre."""
+    """Anexa as tags oficiais de afiliado do Mercado Livre de forma limpa."""
     if not url:
         return ""
 
-    # Se for link de redirecionamento de busca que contém o item_id
-    item_match = re.search(r"item_id%3A(MLB\d+)", url, re.IGNORECASE)
-    if not item_match:
-        item_match = re.search(r"(MLB\d+)", url, re.IGNORECASE)
-
+    mlb_match = re.search(r'MLB-?(\d{8,14})', url, re.IGNORECASE)
     clean_base = url.split("#")[0]
     
-    # Se for link de redirect do click1, tenta usar a URL limpa do produto se achar o ID
-    if "click1.mercadolivre" in clean_base and item_match:
-        item_id = item_match.group(1).upper()
-        clean_base = f"https://produto.mercadolivre.com.br/{item_id}"
+    if mlb_match:
+        mlb_num = mlb_match.group(1)
+        clean_base = f"https://produto.mercadolivre.com.br/MLB-{mlb_num}"
 
     parsed = urllib.parse.urlparse(clean_base)
     query_params = urllib.parse.parse_qs(parsed.query)
 
-    # Adiciona os parâmetros do programa de afiliados
     query_params["matt_tool"] = [matt_tool]
     query_params["matt_word"] = [matt_word]
 

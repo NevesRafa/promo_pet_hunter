@@ -172,7 +172,24 @@ class MercadoLivreScraper:
                         image_url = ""
                         img_elem = card.query_selector("img.poly-component__picture, img")
                         if img_elem:
-                            image_url = img_elem.get_attribute("src") or img_elem.get_attribute("data-src") or ""
+                            srcset = (
+                                img_elem.get_attribute("srcset")
+                                or img_elem.get_attribute("data-srcset")
+                                or ""
+                            )
+                            if srcset:
+                                candidates = [item.strip().split(" ")[0] for item in srcset.split(",")]
+                                image_url = next(
+                                    (candidate for candidate in reversed(candidates) if candidate.startswith(("http", "//"))),
+                                    "",
+                                )
+                            if not image_url:
+                                image_url = (
+                                    img_elem.get_attribute("src")
+                                    or img_elem.get_attribute("data-src")
+                                    or img_elem.get_attribute("data-lazy-src")
+                                    or ""
+                                )
                             if image_url and image_url.startswith("//"):
                                 image_url = "https:" + image_url
 

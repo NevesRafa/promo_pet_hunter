@@ -13,121 +13,78 @@ WHATSAPP_PROFILE_DIR = BASE_DIR / "whatsapp_profile"
 HISTORICO_FILE = BASE_DIR / "historico_enviados.json"
 
 # ==============================================================================
-# LOJAS ATIVAS NESTA VERSÃO
-# Shopee e AliExpress ficam para a próxima versão — os scrapers continuam no
-# projeto (em scrapers/_proxima_versao/), só não são usados por enquanto.
+# Lojas usadas pelo pipeline principal.
 # ==============================================================================
 LOJAS_ATIVAS = ["mercadolivre", "amazon"]
 
-# ==============================================================================
-# TERMOS DE BUSCA — cobrindo toda a linha de Banho & Tosa / Petshop,
-# de máquinas profissionais até laços e acessórios.
-#
-# TERMOS "AMPLOS" (categoria): buscas largas que trazem uma variedade grande
-# de tipos de produto numa tacada só — funcionam quase como navegar a
-# categoria inteira, sem precisar de uma URL de categoria separada (o
-# Mercado Livre nem tem uma URL de categoria estável fora da busca normal).
-# Ficam misturados na mesma lista, e o garimpo sorteia entre eles.
-# ==============================================================================
-TERMOS_AMPLOS_MERCADOLIVRE = [
-    "banho e tosa",
-    "banho tosa",
-    "equipamento banho tosa",
-    "tudo para banho e tosa",
-    "kit banho e tosa",
-    "material banho tosa",
-    "petshop banho e tosa",
-]
+# Consultas organizadas por categoria temática. As lojas continuam sendo
+# consultadas pela busca textual, mas a rotação por categoria evita repetir
+# sempre o mesmo tipo de produto em cada rodada.
+CATEGORIAS_MERCADOLIVRE = {
+    "maquinas_e_laminas": [
+        "maquina de tosa caes profissional",
+        "maquina de tosa sem fio",
+        "lamina de tosa profissional",
+    ],
+    "tesouras_e_acessorios_tosa": [
+        "tesoura tosa pet profissional",
+        "kit tesouras tosa profissional",
+        "adaptador lamina tosa",
+    ],
+    "banho_e_hidratacao": [
+        "shampoo pet caes",
+        "condicionador pet caes",
+        "mascara hidratacao pet",
+    ],
+    "secagem_e_estrutura": [
+        "soprador pet banho e tosa",
+        "secador pet profissional",
+        "mesa de tosa banho e tosa",
+    ],
+    "escovas_e_pentes": [
+        "rasqueadeira profissional pet",
+        "desembolador de nos pet",
+        "pente tosa pet profissional",
+    ],
+    "higiene_e_acessorios": [
+        "corta unha pet profissional",
+        "limpa ouvido pet",
+        "coleira pet profissional",
+    ],
+}
 
-TERMOS_MERCADOLIVRE = TERMOS_AMPLOS_MERCADOLIVRE + [
-    # Máquinas e tosa
-    "maquina de tosa caes profissional",
-    "maquina de tosa sem fio",
-    "lamina de tosa 10 profissional",
-    "lamina de tosa 40 cirurgica",
-    "adaptador lamina tosa",
-    "tesoura tosa tubarao curva pet",
-    "tesoura desbastadora pet",
-    "kit tesouras tosa profissional",
-    # Banho
-    "shampoo pet caes 5 litros galao",
-    "condicionador pet caes 5 litros",
-    "mascara hidratacao pet profissional",
-    "colonia pet fixacao duradoura",
-    "perfume pet cheirinho de bebe",
-    "banheira pet dobravel",
-    # Secagem
-    "soprador pet banho e tosa",
-    "secador pet profissional banho e tosa",
-    "secador forca pet gaiola",
-    # Estrutura e mesa
-    "mesa de tosa dobravel banho tosa",
-    "mesa hidraulica pet profissional",
-    "tanque banho pet inox",
-    "gaiola secagem pet",
-    # Escovas e pentes
-    "rasqueadeira profissional desembolador pet",
-    "escova desembolo pet",
-    "pente tosa pet profissional",
-    "luva tira pelo pet",
-    "desembolador de nos pet",
-    # Higiene e cuidados
-    "corta unha pet profissional",
-    "alicate unha cachorro",
-    "limpa ouvido pet",
-    "escova dental pet kit",
-    "toalha alta absorcao banho e tosa",
-    "avental pet shop impermeavel",
-    # Acessórios e enfeites
-    "lacos pet banho e tosa atacado",
-    "gravatas pet atacado banho tosa",
-    "bandana pet atacado",
-    "coleira contencao banho tosa",
-    "focinheira pet ajustavel",
-]
-
-TERMOS_AMPLOS_AMAZON = [
-    "pet shop banho e tosa",
-    "kit banho e tosa pet",
-    "equipamento pet shop tosa",
-    "acessorios banho e tosa pet",
-]
-
-TERMOS_AMAZON = TERMOS_AMPLOS_AMAZON + [
-    # Máquinas e tosa
-    "maquina tosa caes profissional wahl",
-    "maquina tosa sem fio pet",
-    "lamina maquina tosa pet",
-    "tesoura tosa curva profissional",
-    "tesoura desbaste pet",
-    # Banho
-    "shampoo pet caes 5 litros",
-    "condicionador pet caes 5 litros",
-    "mascara hidratacao pet profissional",
-    "perfume pet colonia caes",
-    "banheira dobravel pet",
-    # Secagem
-    "secador pet profissional",
-    "soprador forca pet",
-    # Estrutura
-    "mesa tosa pet dobravel",
-    "tanque pet banho inox",
-    # Escovas e pentes
-    "rasqueadeira profissional pet cachorro",
-    "desembolador de pelos pet caes",
-    "escova pet remove pelos",
-    "pente pet profissional",
-    # Higiene
-    "alicate cortador unha pet cachorro",
-    "limpador de ouvido pet",
-    "toalha banho pet alta absorcao",
-    "avental pet shop profissional",
-    # Acessórios
-    "laco pet atacado",
-    "bandana cachorro atacado",
-    "coleira adestramento pet",
-    "focinheira cachorro ajustavel",
-]
+CATEGORIAS_AMAZON = {
+    "maquinas_e_laminas": [
+        "maquina tosa caes profissional",
+        "maquina tosa sem fio pet",
+        "lamina maquina tosa pet",
+    ],
+    "tesouras_e_acessorios_tosa": [
+        "tesoura tosa curva profissional",
+        "tesoura desbaste pet",
+        "kit tesoura tosa pet",
+    ],
+    "banho_e_hidratacao": [
+        "shampoo pet caes",
+        "condicionador pet caes",
+        "perfume pet colonia caes",
+    ],
+    "secagem_e_estrutura": [
+        "secador pet profissional",
+        "soprador forca pet",
+        "mesa tosa pet dobravel",
+    ],
+    "escovas_e_pentes": [
+        "rasqueadeira profissional pet",
+        "desembolador pelos pet",
+        "pente pet profissional",
+    ],
+    "higiene_e_acessorios": [
+        "cortador unha pet cachorro",
+        "limpador ouvido pet",
+        "coleira adestramento pet",
+    ],
+}
 
 # ==============================================================================
 # FILTRO ESTRITO: só entra se for produto pet/banho-e-tosa de verdade

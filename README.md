@@ -3,9 +3,6 @@
 Robô de garimpo e postagem automática de promoções **Pet Shop / Banho & Tosa**
 no WhatsApp, com afiliado do **Mercado Livre** e da **Amazon**.
 
-> Shopee e AliExpress ficam para a próxima versão. Os scrapers continuam no
-> projeto, guardados em `proxima_versao/`, só não são usados por enquanto.
-
 ---
 
 ## ✅ O que o robô garante
@@ -23,7 +20,7 @@ no WhatsApp, com afiliado do **Mercado Livre** e da **Amazon**.
   levar bloqueio.
 - **Cobertura ampla de produtos**: máquinas de tosa, lâminas, tesouras,
   shampoos, secadores, mesas, rasqueadeiras, laços, bandanas, coleiras e
-  mais — veja `config.TERMOS_MERCADOLIVRE` / `config.TERMOS_AMAZON`.
+  mais — veja `config.CATEGORIAS_MERCADOLIVRE` / `config.CATEGORIAS_AMAZON`.
 
 ---
 
@@ -71,7 +68,7 @@ acorda sozinho no horário configurado.
 | Nota mínima / avaliações mínimas | `MIN_RATING` / `MIN_REVIEWS` |
 | Quantas ofertas por rodada | `ITENS_POR_LOTE` |
 | Pausas anti-ban | `PAUSA_ENTRE_POSTAGENS_*` / `PAUSA_ENTRE_RODADAS_*` |
-| Termos de busca | `TERMOS_MERCADOLIVRE` / `TERMOS_AMAZON` |
+| Categorias e termos de busca | `CATEGORIAS_MERCADOLIVRE` / `CATEGORIAS_AMAZON` |
 | Palavras que barram um produto fora do nicho | `PALAVRAS_PROIBIDAS_NAO_PET` |
 | Grupo de WhatsApp de destino | `DEFAULT_WHATSAPP_GROUP` |
 | Tags de afiliado | `AMAZON_TAG` / `MELI_MATT_TOOL` / `MELI_MATT_WORD` |
@@ -88,7 +85,6 @@ acorda sozinho no horário configurado.
 - `media_manager.py` — download da foto real do produto.
 - `exporters.py` — registro de cada lote postado em Excel/TXT/CSV (`outputs/`).
 - `scrapers/` — coletores do Mercado Livre e da Amazon.
-- `proxima_versao/` — Shopee e AliExpress, guardados para a próxima versão.
 
 ---
 

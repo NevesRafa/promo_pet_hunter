@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 PromoPet Hunter — Ponto de entrada único do projeto.
-Lojas ativas nesta versão: MERCADO LIVRE & AMAZON (Shopee e AliExpress ficam
-para a próxima versão — os scrapers continuam guardados, só não são usados).
+Lojas ativas nesta versão: MERCADO LIVRE e AMAZON.
 
 Uso:
     python bot.py                 -> inicia o garimpo contínuo (dentro da janela operacional)
@@ -240,36 +239,49 @@ def resetar_estatisticas_dia():
 # ==============================================================================
 # GARIMPO: MERCADO LIVRE + AMAZON
 # ==============================================================================
-def garimpar_ofertas(historico: Set[str]) -> List[Product]:
-    termo_ml = random.choice(config.TERMOS_MERCADOLIVRE)
-    termo_amz = random.choice(config.TERMOS_AMAZON)
+def garimpar_ofertas(
+    historico: Set[str],
+    lojas: Optional[Set[str]] = None,
+) -> List[Product]:
+    lojas = lojas or set(config.LOJAS_ATIVAS)
 
     print("\n" + "=" * 72)
-    print("  🐾 GARIMPO PET SHOP / BANHO & TOSA: MERCADO LIVRE & AMAZON 🐾")
+    print(f"  🐾 GARIMPO PET SHOP / BANHO & TOSA: {', '.join(sorted(lojas)).upper()} 🐾")
     print(f"  Itens já enviados hoje: {len(historico)}")
     print("=" * 72)
 
     raw_items: List[Product] = []
 
-    print(f"\n[1/2] 🛒 Mercado Livre: pesquisando '{termo_ml}'...")
-    try:
-        ml = MercadoLivreScraper(headless=False)
-        items = ml.search(termo_ml, max_items=15)
-        print(f"      [✔] {len(items)} produtos encontrados no Mercado Livre")
-        raw_items.extend(items)
-    except Exception as e:
-        print(f"      [!] Erro no Mercado Livre: {e}")
-        ESTATISTICAS_DIA["erros_meli"] += 1
-
-    print(f"\n[2/2] 📦 Amazon: pesquisando '{termo_amz}'...")
-    try:
-        amz = AmazonScraper(headless=True)
-        items = amz.search(termo_amz, max_items=15)
-        print(f"      [✔] {len(items)} produtos encontrados na Amazon")
-        raw_items.extend(items)
-    except Exception as e:
-        print(f"      [!] Erro na Amazon: {e}")
-        ESTATISTICAS_DIA["erros_amazon"] += 1
+    scrapers = {
+        "mercadolivre": (
+            "Mercado Livre",
+            MercadoLivreScraper,
+            config.CATEGORIAS_MERCADOLIVRE,
+            False,
+        ),
+        "amazon": (
+            "Amazon",
+            AmazonScraper,
+            config.CATEGORIAS_AMAZON,
+            True,
+        ),
+    }
+    for store_key in ("mercadolivre", "amazon"):
+        if store_key not in lojas:
+            continue
+        store_name, scraper_class, categories, headless = scrapers[store_key]
+        category_name = random.choice(list(categories))
+        term = random.choice(categories[category_name])
+        print(f"\n[{store_name}] categoria '{category_name}': pesquisando '{term}'...")
+        try:
+            scraper = scraper_class(headless=headless)
+            items = scraper.search(term, max_items=15)
+            print(f"      [✔] {len(items)} produtos encontrados na {store_name}")
+            raw_items.extend(items)
+        except Exception as e:
+            print(f"      [!] Erro na {store_name}: {e}")
+            stat_key = "erros_meli" if store_key == "mercadolivre" else f"erros_{store_key}"
+            ESTATISTICAS_DIA[stat_key] += 1
 
     validos: List[Product] = []
     for p in deduplicate_products(raw_items):
@@ -282,7 +294,7 @@ def garimpar_ofertas(historico: Set[str]) -> List[Product]:
     return validos
 
 def montar_lote_equilibrado(candidatos: List[Product], max_items: int) -> List[Product]:
-    """Alterna entre Mercado Livre e Amazon, priorizando maior desconto/avaliação."""
+    """Alterna entre as lojas disponíveis, priorizando desconto e avaliação."""
     if not candidatos:
         return []
 
@@ -293,11 +305,11 @@ def montar_lote_equilibrado(candidatos: List[Product], max_items: int) -> List[P
     amz.sort(key=lambda x: (x.discount_percent or 0, x.rating or 0), reverse=True)
 
     lote: List[Product] = []
-    while len(lote) < max_items and (meli or amz):
-        if meli and len(lote) < max_items:
-            lote.append(meli.pop(0))
-        if amz and len(lote) < max_items:
-            lote.append(amz.pop(0))
+    filas = [meli, amz]
+    while len(lote) < max_items and any(filas):
+        for fila in filas:
+            if fila and len(lote) < max_items:
+                lote.append(fila.pop(0))
     return lote
 
 
@@ -415,6 +427,7 @@ def enviar_lote_para_whatsapp(
     rodada_num: int,
     telefone_pessoal: Optional[str] = None,
     registrar_historico: bool = True,
+    aguardar_entre_postagens: bool = True,
 ) -> int:
     if not lote:
         return 0
@@ -496,7 +509,7 @@ def enviar_lote_para_whatsapp(
                     historico.add(uid)
                     salvar_historico(historico)
 
-            if idx < len(lote):
+            if idx < len(lote) and aguardar_entre_postagens:
                 minutos_espera = random.uniform(config.PAUSA_ENTRE_POSTAGENS_MIN, config.PAUSA_ENTRE_POSTAGENS_MAX)
                 segundos = int(minutos_espera * 60)
                 proximo = datetime.now() + timedelta(seconds=segundos)
@@ -800,9 +813,12 @@ def main():
         WhatsAppSender().setup_session()
         return
 
+
     if args.test:
         executar_teste_unico()
         return
+
+
 
     if args.diagnostico:
         historico = carregar_historico()
